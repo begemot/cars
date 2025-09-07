@@ -3,14 +3,13 @@ import logging
 import os
 import time
 from functools import partial
-from random import randint
 from urllib.request import urlretrieve
 
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from fake_useragent import UserAgent
-from multiprocess import Pool
+from multiprocess import Pool, Value
 from tqdm import tqdm
 from typing import List, Dict, Any, Tuple
 
@@ -34,6 +33,8 @@ class CarsParser:
         self.proxy_passwords = proxy_passwords
         self.default_url = default_url
         self.processes = processes
+        # shared index for deterministic proxy distribution across processes
+        self.proxy_index = Value('i', 0)
 
 
     def get_proxies_user_agents(
@@ -89,13 +90,16 @@ class CarsParser:
 
     
     def get_random_proxies_and_headers(self) -> Tuple[Dict[str, str], Dict[str, str]]:
-        """ Получает случайный proxies и headers для GET-запроса"""
+        """ Получает proxies и headers для GET-запроса в детерминированном порядке """
 
-        rand_i = randint(0, len(self.proxy_hosts) - 1)
-        proxy_host = self.proxy_hosts[rand_i]
-        proxy_port_http = self.proxy_ports_http[rand_i]
-        proxy_user = self.proxy_users[rand_i]
-        proxy_pass = self.proxy_passwords[rand_i]
+        with self.proxy_index.get_lock():
+            idx = self.proxy_index.value
+            self.proxy_index.value = (self.proxy_index.value + 1) % len(self.proxy_hosts)
+
+        proxy_host = self.proxy_hosts[idx]
+        proxy_port_http = self.proxy_ports_http[idx]
+        proxy_user = self.proxy_users[idx]
+        proxy_pass = self.proxy_passwords[idx]
 
         proxies = {
             "http": f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port_http}",
