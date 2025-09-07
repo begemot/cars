@@ -231,12 +231,12 @@ class CarsParser:
 
     def get_vehicle_page_hrefs(
         self,
-        stock_type: str, 
+        stock_type: str,
         car_make: str,
         car_model: str,
         page: int
     ):
-        """ Извлекает список ссылок на карточки автомобилей с конкретной страницы """
+        """ Извлекает ссылки на новые авто и обновляет цены уже скачанных """
 
         proxies, headers = self.get_random_proxies_and_headers()
         params = {
@@ -255,10 +255,26 @@ class CarsParser:
 
         if response.status_code != 200:
             raise ValueError("Ошибка:", response.status_code)
-    
+
         soup = BeautifulSoup(response.content, "html.parser")
-        cards = soup.find_all("a", {"class": "vehicle-card-link"})
-        vehicle_hrefs = list(map(lambda card: card["href"], cards))
+        cards = soup.find_all("div", {"class": "vehicle-card"})
+
+        vehicle_hrefs = []
+        for card in cards:
+            link = card.find("a", {"class": "vehicle-card-link"})
+            if not link or not link.get("href"):
+                continue
+
+            href = link["href"]
+            vehicle_id = href.split("/")[2]
+
+            price_elem = card.find("span", {"class": "primary-price"})
+            price = self.get_number(price_elem.text) if price_elem else 0
+
+            if vehicle_id in self.all_vehicle_ids:
+                self.update_vehicle_price(vehicle_id, price)
+            else:
+                vehicle_hrefs.append(href)
 
         return vehicle_hrefs
     
@@ -365,7 +381,6 @@ class CarsParser:
 
                 with open(url, "w") as f:
                     json.dump(vehicle_info, f)
-                self.all_vehicle_ids.remove(vehicle_id)
         except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError) as exc:
             logging.error(f"Failed to update price for {vehicle_id}: {exc}")
 
@@ -470,7 +485,6 @@ class CarsParser:
     ):
         """ Собирает данные обо всех автомобилях """
         self.all_vehicle_ids = self.get_all_vehicle_ids()
-        self.update_prices()
 
         for stock_type in car_stock_types:
             for car_make in car_makes:
