@@ -1,0 +1,9 @@
+{
+  "id": 1,
+  "make": "Toyota",
+  "model": "Corolla",
+  "year": 2018,
+  "price": 15000,
+  "mileage": 30000,
+  "description": "Reliable compact car"
+}
