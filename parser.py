@@ -307,14 +307,22 @@ class CarsParser:
                         f.write(chunk)
 
 
-    def parse_basics_block(self, soup: BeautifulSoup) -> dict:
-        """ Парсит блок "Основная информация" на странице авто и возвращает словарь """
+    def parse_basics_block(self, soup: BeautifulSoup, page_url: str) -> dict:
+        """Парсит блок "Основная информация" на странице авто.
+
+        Args:
+            soup: Объект :class:`BeautifulSoup` страницы автомобиля.
+            page_url: URL страницы, с которой производится парсинг.
+
+        Returns:
+            Словарь с ключами и значениями из блока "Основная информация".
+        """
 
         basics_dict = {}
 
         basics_block = soup.find("section", {"class": "basics-section"})
         if basics_block is None:
-            print("Блок 'Основная информация' не найден")
+            logging.info(f"Basics block not found for {page_url}")
             return basics_dict
         keys = basics_block.find_all("dt")
         keys = list(map(lambda key: key.text.strip(), keys))
@@ -327,14 +335,22 @@ class CarsParser:
         return basics_dict
 
 
-    def parse_features_block(self, soup: BeautifulSoup) -> dict:
-        """ Парсит блок "Особенности/функции" на странице авто и возвращает словарь """
+    def parse_features_block(self, soup: BeautifulSoup, page_url: str) -> dict:
+        """Парсит блок "Особенности/функции" на странице авто.
+
+        Args:
+            soup: Объект :class:`BeautifulSoup` страницы автомобиля.
+            page_url: URL страницы, с которой производится парсинг.
+
+        Returns:
+            Словарь с ключами и значениями из блока "Особенности/функции".
+        """
 
         features_dict = {}
 
         features_block = soup.find("section", {"class": "features-section"})
         if features_block is None:
-            print("Блок 'Особенности/функции' не найден")
+            logging.info(f"Features block not found for {page_url}")
             return features_dict
         keys = features_block.find_all("dt")
         keys = list(map(lambda key: key.text.strip(), keys))
@@ -347,13 +363,21 @@ class CarsParser:
         return features_dict
 
 
-    def parse_sellers_info_block(self, soup: BeautifulSoup) -> str:
-        """ Извлекает блок информации о продавце (дилер/частник) """
+    def parse_sellers_info_block(self, soup: BeautifulSoup, page_url: str) -> str:
+        """Извлекает блок информации о продавце (дилер/частник).
+
+        Args:
+            soup: Объект :class:`BeautifulSoup` страницы автомобиля.
+            page_url: URL страницы, с которой производится парсинг.
+
+        Returns:
+            Строку с информацией о продавце или пустую строку, если блок отсутствует.
+        """
 
         try:
             return soup.find("cars-line-clamp").text.strip()
         except AttributeError as exc:
-            logging.info(f"Seller info block not found: {exc}")
+            logging.info(f"Seller info block not found for {page_url}: {exc}")
             return ""
         
     
@@ -432,7 +456,11 @@ class CarsParser:
         
 
     def get_vehicle_info(self, vehicle_href: str, brand_words_num: int = 1):
-        """ Собирает всю информацию об автомобиле: год, бренд, модель, пробег, цена, блоки, фото """
+        """Собирает всю информацию об автомобиле: год, бренд, модель, пробег, цена, блоки, фото.
+
+        Передает URL страницы во вспомогательные функции разбора блоков, что позволяет
+        логировать отсутствие блоков с привязкой к странице.
+        """
 
         try:
             vehicle_id = vehicle_href.split("/")[2]
@@ -460,9 +488,9 @@ class CarsParser:
             info["price"] = self.get_number(
                 soup.find("span", {"class": "primary-price"}).text
             )
-            info["basics_section"] = self.parse_basics_block(soup)
-            info["features_section"] = self.parse_features_block(soup)
-            info["seller_info"] = self.parse_sellers_info_block(soup)
+            info["basics_section"] = self.parse_basics_block(soup, url)
+            info["features_section"] = self.parse_features_block(soup, url)
+            info["seller_info"] = self.parse_sellers_info_block(soup, url)
 
             images_block = soup.find("gallery-filmstrip")
             images = images_block.find_all("img") if images_block else []
