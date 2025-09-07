@@ -19,6 +19,49 @@ def parser_instance():
     return CarsParser([], [], [], [], "https://example.com", 1)
 
 
+def test_load_proxies_parses_file(tmp_path):
+    proxy_file = tmp_path / "proxies.txt"
+    proxy_file.write_text("host1:80:user1:pass1\nhost2:81:user2:pass2\n\n")
+
+    hosts, ports, users, passwords = parser.load_proxies(str(proxy_file))
+
+    assert hosts == ["host1", "host2"]
+    assert ports == ["80", "81"]
+    assert users == ["user1", "user2"]
+    assert passwords == ["pass1", "pass2"]
+
+
+def test_main_uses_load_proxies(tmp_path, monkeypatch):
+    proxy_file = tmp_path / "proxies.txt"
+    proxy_file.write_text("host1:80:user1:pass1\n")
+
+    monkeypatch.setenv("PROXY_FILE", str(proxy_file))
+    monkeypatch.setenv("DEFAULT_URL", "https://example.com")
+    monkeypatch.setenv("PROCESSES", "1")
+
+    captured = {}
+
+    class DummyParser:
+        def __init__(self, hosts, ports, users, passwords, default_url, processes):
+            captured["hosts"] = hosts
+            captured["ports"] = ports
+            captured["users"] = users
+            captured["passwords"] = passwords
+
+        def run(self):
+            captured["ran"] = True
+
+    monkeypatch.setattr(parser, "CarsParser", DummyParser)
+
+    parser.main()
+
+    assert captured["hosts"] == ["host1"]
+    assert captured["ports"] == ["80"]
+    assert captured["users"] == ["user1"]
+    assert captured["passwords"] == ["pass1"]
+    assert captured.get("ran")
+
+
 def test_parse_basics_block_logs_url(parser_instance, caplog):
     soup = BeautifulSoup("<html></html>", "html.parser")
     url = "https://cars.com/vehicledetail/123"
