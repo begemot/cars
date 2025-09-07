@@ -289,6 +289,9 @@ class CarsParser:
         basics_dict = {}
 
         basics_block = soup.find("section", {"class": "basics-section"})
+        if basics_block is None:
+            print("Блок 'Основная информация' не найден")
+            return basics_dict
         keys = basics_block.find_all("dt")
         keys = list(map(lambda key: key.text.strip(), keys))
         values = basics_block.find_all("dd")
@@ -306,6 +309,9 @@ class CarsParser:
         features_dict = {}
 
         features_block = soup.find("section", {"class": "features-section"})
+        if features_block is None:
+            print("Блок 'Особенности/функции' не найден")
+            return features_dict
         keys = features_block.find_all("dt")
         keys = list(map(lambda key: key.text.strip(), keys))
         values = features_block.find_all("dd")
