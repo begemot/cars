@@ -103,6 +103,8 @@ class CarsParser:
         else:
             user_agents = {}
 
+        successful_proxies = []
+
         for proxy in tqdm(
             self.proxies,
             desc="Загрузка User-Agent для Proxies",
@@ -130,6 +132,7 @@ class CarsParser:
                     )
                     if response.status_code == 200:
                         user_agents[host] = user_agent
+                        successful_proxies.append(proxy)
                         break
                     raise ValueError(
                         "Unexpected status code: %s" % response.status_code
@@ -150,6 +153,17 @@ class CarsParser:
             json.dump(user_agents, f)
 
         self.user_agents = user_agents
+        self.proxies = successful_proxies
+
+        proxy_file = os.getenv("PROXY_FILE", "proxies.txt")
+        try:
+            with open(proxy_file, "w") as f:
+                for proxy in self.proxies:
+                    f.write(
+                        f"{proxy['host']}:{proxy['port']}:{proxy['user']}:{proxy['password']}\n"
+                    )
+        except OSError as exc:
+            logging.warning(f"Could not persist proxies to {proxy_file}: {exc}")
 
     
     def get_random_proxies_and_headers(self) -> Tuple[Dict[str, str], Dict[str, str]]:

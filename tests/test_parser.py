@@ -167,3 +167,42 @@ def test_get_all_car_models_refreshes_stale_cache(tmp_path, monkeypatch):
     with open("car_models.json", "r") as f:
         saved = json.load(f)
     assert saved == {"used": {"BrandA": ["Model1"]}}
+
+
+def test_get_proxies_user_agents_filters_and_persists(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    proxy_file = tmp_path / "proxies.txt"
+    proxy_file.write_text("host1:80:user1:pass1\nhost2:81:user2:pass2\n")
+
+    monkeypatch.setenv("PROXY_FILE", str(proxy_file))
+
+    proxies = parser.load_proxies(str(proxy_file))
+    parser_instance = CarsParser(proxies, "https://example.com", 1)
+
+    class DummyUA:
+        @property
+        def chrome(self):
+            return "agent"
+
+    monkeypatch.setattr(parser, "UserAgent", lambda: DummyUA())
+
+    def fake_get(url, headers=None, proxies=None, timeout=15):
+        if "host1" in proxies["http"]:
+            return SimpleNamespace(status_code=200)
+        raise parser.requests.exceptions.RequestException("boom")
+
+    monkeypatch.setattr(parser.requests, "get", fake_get)
+
+    parser_instance.get_proxies_user_agents(max_retries=1)
+
+    assert parser_instance.proxies == [
+        {"host": "host1", "port": "80", "user": "user1", "password": "pass1"}
+    ]
+
+    assert proxy_file.read_text() == "host1:80:user1:pass1\n"
+
+    with open("proxies_user_agents.json", "r") as f:
+        data = json.load(f)
+
+    assert list(data.keys()) == ["host1"]
