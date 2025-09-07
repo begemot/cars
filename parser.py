@@ -351,7 +351,13 @@ class CarsParser:
         car_model: str,
         page: int
     ):
-        """ Извлекает ссылки на новые авто и обновляет цены уже скачанных """
+        """Извлекает ссылки на авто и подсчитывает количество новых и пропущенных.
+
+        Помимо возврата ссылок на автомобили, функция также подсчитывает
+        общее количество объявлений на странице и число объявлений, которые уже
+        присутствуют в локальных данных. Это позволяет выводить пользователю
+        более подробную статистику при обработке страниц.
+        """
 
         proxies, headers = self.get_random_proxies_and_headers()
         params = {
@@ -375,6 +381,7 @@ class CarsParser:
         cards = soup.find_all("div", {"class": "vehicle-card"})
 
         vehicle_hrefs = []
+        skipped = 0
         for card in cards:
             link = card.find("a", {"class": "vehicle-card-link"})
             if not link or not link.get("href"):
@@ -388,10 +395,13 @@ class CarsParser:
 
             if vehicle_id in self.all_vehicle_ids:
                 self.update_vehicle_price(vehicle_id, price)
+                skipped += 1
             else:
                 vehicle_hrefs.append(href)
 
-        return vehicle_hrefs
+        total_on_page = len(cards)
+
+        return vehicle_hrefs, total_on_page, skipped
     
 
     def get_number(self, line: str):
@@ -640,7 +650,9 @@ class CarsParser:
                 for car_model in car_models[stock_type][car_make]:
                     last_page = self.get_pages_num(stock_type, car_make, car_model)
                     for page in range(1, last_page + 1):
-                        vehicle_hrefs = self.get_vehicle_page_hrefs(stock_type, car_make, car_model, page)
+                        vehicle_hrefs, total_on_page, skipped = self.get_vehicle_page_hrefs(
+                            stock_type, car_make, car_model, page
+                        )
 
                         processing_func = partial(
                             self.get_vehicle_info, brand_words_num=brand_words_num
@@ -649,9 +661,17 @@ class CarsParser:
                             for _ in tqdm(
                                 pool.imap(processing_func, vehicle_hrefs),
                                 total=len(vehicle_hrefs),
-                                desc=f"Загрузка: {stock_type} | {car_make} | {car_model} | страница {page}"
+                                desc=(
+                                    f"Загрузка: {stock_type} | {car_make} | {car_model} | "
+                                    f"страница {page} | всего {total_on_page}"
+                                ),
                             ):
                                 pass
+
+                        loaded = len(vehicle_hrefs)
+                        print(
+                            f"Страница {page}: загружено {loaded} авто, пропущено {skipped}"
+                        )
     
     
     def run(self):
