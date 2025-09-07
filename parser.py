@@ -14,6 +14,15 @@ from tqdm import tqdm
 from typing import List, Dict, Any, Tuple
 
 
+_proxy_index = None
+
+
+def init_pool(proxy_index):
+    """Pool initializer to set shared proxy index in child processes."""
+    global _proxy_index
+    _proxy_index = proxy_index
+
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -33,8 +42,8 @@ class CarsParser:
         self.proxy_passwords = proxy_passwords
         self.default_url = default_url
         self.processes = processes
-        # shared index for deterministic proxy distribution across processes
-        self.proxy_index = Value('i', 0)
+        global _proxy_index
+        _proxy_index = Value('i', 0)
 
 
     def get_proxies_user_agents(
@@ -92,9 +101,10 @@ class CarsParser:
     def get_random_proxies_and_headers(self) -> Tuple[Dict[str, str], Dict[str, str]]:
         """ Получает proxies и headers для GET-запроса в детерминированном порядке """
 
-        with self.proxy_index.get_lock():
-            idx = self.proxy_index.value
-            self.proxy_index.value = (self.proxy_index.value + 1) % len(self.proxy_hosts)
+        global _proxy_index
+        with _proxy_index.get_lock():
+            idx = _proxy_index.value
+            _proxy_index.value = (idx + 1) % len(self.proxy_hosts)
 
         proxy_host = self.proxy_hosts[idx]
         proxy_port_http = self.proxy_ports_http[idx]
@@ -198,7 +208,12 @@ class CarsParser:
 
             for stock_type in tqdm(car_stock_types, desc="Загрузка моделей автомобилей..."):
 
-                with Pool(self.processes) as pool:
+                pool_kwargs = {"initializer": init_pool, "initargs": (_proxy_index,)}
+                try:
+                    pool = Pool(self.processes, **pool_kwargs)
+                except TypeError:
+                    pool = Pool(self.processes)
+                with pool:
                     # Создаем список аргументов для каждого процесса
                     args = [(stock_type, car_make) for car_make in car_makes]
 
