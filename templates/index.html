@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Cars</title>
+</head>
+<body>
+<h1>Cars</h1>
+<form method="get">
+    Price: <input name="price_min" placeholder="min" value="{{ request.args.get('price_min', '') }}">
+    - <input name="price_max" placeholder="max" value="{{ request.args.get('price_max', '') }}"><br>
+    Mileage: <input name="mileage_min" placeholder="min" value="{{ request.args.get('mileage_min', '') }}">
+    - <input name="mileage_max" placeholder="max" value="{{ request.args.get('mileage_max', '') }}"><br>
+    Year: <input name="year_min" placeholder="min" value="{{ request.args.get('year_min', '') }}">
+    - <input name="year_max" placeholder="max" value="{{ request.args.get('year_max', '') }}"><br>
+    Sort by:
+    <select name="sort">
+        <option value="">--</option>
+        <option value="price" {% if request.args.get('sort') == 'price' %}selected{% endif %}>Price</option>
+        <option value="mileage" {% if request.args.get('sort') == 'mileage' %}selected{% endif %}>Mileage</option>
+        <option value="year" {% if request.args.get('sort') == 'year' %}selected{% endif %}>Year</option>
+    </select>
+    <select name="order">
+        <option value="asc" {% if request.args.get('order', 'asc') == 'asc' %}selected{% endif %}>Asc</option>
+        <option value="desc" {% if request.args.get('order') == 'desc' %}selected{% endif %}>Desc</option>
+    </select>
+    <button type="submit">Apply</button>
+</form>
+<table border="1" cellpadding="5">
+<tr><th>ID</th><th>Make</th><th>Model</th><th>Year</th><th>Price</th><th>Mileage</th></tr>
+{% for car in cars %}
+<tr>
+    <td><a href="{{ url_for('view_car', car_id=car.id) }}">{{ car.id }}</a></td>
+    <td>{{ car.make }}</td>
+    <td>{{ car.model }}</td>
+    <td>{{ car.year }}</td>
+    <td>{{ car.price }}</td>
+    <td>{{ car.mileage }}</td>
+</tr>
+{% endfor %}
+</table>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "id": 3,
+  "make": "Ford",
+  "model": "Focus",
+  "year": 2015,
+  "price": 9000,
+  "mileage": 60000,
+  "description": "Economic hatchback"
+}

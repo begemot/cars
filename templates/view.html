@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Car {{ car.id }}</title>
+</head>
+<body>
+<h1>{{ car.make }} {{ car.model }}</h1>
+<ul>
+    <li>ID: {{ car.id }}</li>
+    <li>Year: {{ car.year }}</li>
+    <li>Price: {{ car.price }}</li>
+    <li>Mileage: {{ car.mileage }}</li>
+</ul>
+<p>{{ car.description }}</p>
+<p><a href="{{ url_for('index') }}">Back to list</a></p>
+</body>
+</html>

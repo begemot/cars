@@ -1,0 +1,9 @@
+{
+  "id": 2,
+  "make": "Honda",
+  "model": "Civic",
+  "year": 2020,
+  "price": 20000,
+  "mileage": 20000,
+  "description": "Sporty and efficient"
+}
