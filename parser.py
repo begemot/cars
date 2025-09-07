@@ -265,7 +265,7 @@ class CarsParser:
             return 0
 
 
-    def dowload_images(self, vehicle_id: str, images: List) -> None:
+    def download_images(self, vehicle_id: str, images: List) -> None:
         """ Скачивает фотографии автомобиля и сохраняет их в папку с ID авто """
 
         folder_path = f"data/{vehicle_id}/images"
@@ -432,7 +432,7 @@ class CarsParser:
             images = soup.find("gallery-filmstrip").find_all("img")
             images = list(map(lambda image: image["src"], images))
 
-            self.dowload_images(vehicle_id, images)
+            self.download_images(vehicle_id, images)
             self.save_vehicle_info(vehicle_id, info)
 
         except:
