@@ -116,6 +116,14 @@ class CarsParser:
     def get_params(self):
         """ Получает список типов продаж (new, used, cpo) и список брендов с сайта """
 
+        cache_path = "car_params.json"
+        if os.path.exists(cache_path):
+            # invalidate cache if older than 24 hours
+            if time.time() - os.path.getmtime(cache_path) < 86400:
+                with open(cache_path, "r") as f:
+                    data = json.load(f)
+                return data["car_stock_types"], data["car_makes"]
+
         proxies, headers = self.get_random_proxies_and_headers()
         response = requests.get(self.default_url, headers=headers, proxies=proxies)
         if response.status_code != 200:
@@ -135,7 +143,14 @@ class CarsParser:
             car_makes_group = list(map(lambda make: make["value"], car_makes_group))
             car_makes.extend(car_makes_group)
 
-        return ["used"], car_makes
+        car_stock_types = ["used"]
+        with open(cache_path, "w") as f:
+            json.dump({
+                "car_stock_types": car_stock_types,
+                "car_makes": car_makes
+            }, f)
+
+        return car_stock_types, car_makes
     
 
     def get_models(self, stock_type: str, car_make: str) -> List[str]:
@@ -174,8 +189,9 @@ class CarsParser:
     def get_all_car_models(self, car_stock_types: str, car_makes: str) -> Dict:
         """ Получает все модели автомобиля по состоянию и марке """
 
-        if os.path.exists("car_models.json"):
-            with open("car_models.json", "r") as f:
+        cache_path = "car_models.json"
+        if os.path.exists(cache_path) and time.time() - os.path.getmtime(cache_path) < 86400:
+            with open(cache_path, "r") as f:
                 car_models = json.load(f)
         else:
             car_models = {}
@@ -185,16 +201,16 @@ class CarsParser:
                 with Pool(self.processes) as pool:
                     # Создаем список аргументов для каждого процесса
                     args = [(stock_type, car_make) for car_make in car_makes]
-                    
+
                     # Запускаем процессы параллельно
                     results = pool.starmap(self.get_models, args)
-                    
+
                     # Собираем результаты в словарь
                     car_make_models = dict(zip(car_makes, results))
-                
+
                 car_models[stock_type] = car_make_models
 
-            with open('car_models.json', 'w') as f:
+            with open(cache_path, 'w') as f:
                 json.dump(car_models, f)
 
         return car_models
