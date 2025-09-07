@@ -9,7 +9,8 @@ import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from fake_useragent import UserAgent
-from multiprocess import Pool, Value
+from multiprocessing import Value
+from multiprocessing.pool import ThreadPool as Pool
 from tqdm import tqdm
 from typing import List, Dict, Any, Tuple
 
@@ -475,11 +476,12 @@ class CarsParser:
 
         # Цены автомобилей обновляем с переходом на страницу
         with Pool(self.processes) as pool:
-            for _ in tqdm(pool.imap(self.get_vehicle_price_by_id, self.all_vehicle_ids), 
+            for _ in tqdm(
+                pool.imap(self.get_vehicle_price_by_id, self.all_vehicle_ids),
                 total=len(self.all_vehicle_ids),
                 desc=f"Обновление цен автомобилей"
             ):
-                time.sleep(0.1)
+                pass
                 
     
     def save_vehicle_info(self, vehicle_id: str, car_info: Dict[str, Any]) -> None:
@@ -561,13 +563,16 @@ class CarsParser:
                     for page in range(1, last_page + 1):
                         vehicle_hrefs = self.get_vehicle_page_hrefs(stock_type, car_make, car_model, page)
 
-                        processing_func = partial(self.get_vehicle_info, brand_words_num=brand_words_num)
+                        processing_func = partial(
+                            self.get_vehicle_info, brand_words_num=brand_words_num
+                        )
                         with Pool(self.processes) as pool:
-                            for _ in tqdm(pool.imap(processing_func, vehicle_hrefs), 
+                            for _ in tqdm(
+                                pool.imap(processing_func, vehicle_hrefs),
                                 total=len(vehicle_hrefs),
                                 desc=f"Загрузка: {stock_type} | {car_make} | {car_model} | страница {page}"
                             ):
-                                time.sleep(0.1)
+                                pass
     
     
     def run(self):
