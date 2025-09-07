@@ -24,7 +24,7 @@ def init_pool(proxy_index):
     _proxy_index = proxy_index
 
 
-def load_proxies(file_path: str) -> Tuple[List[str], List[str], List[str], List[str]]:
+def load_proxies(file_path: str) -> List[Dict[str, str]]:
     """Load proxy configuration from a file.
 
     Each non-empty line in ``file_path`` should contain four ``:``-separated
@@ -34,13 +34,11 @@ def load_proxies(file_path: str) -> Tuple[List[str], List[str], List[str], List[
         file_path: Path to the proxies file.
 
     Returns:
-        Four lists containing hosts, ports, usernames and passwords.
+        A list of dictionaries with keys ``host``, ``port``, ``user`` and
+        ``password`` representing the proxy records.
     """
 
-    hosts: List[str] = []
-    ports: List[str] = []
-    users: List[str] = []
-    passwords: List[str] = []
+    proxies: List[Dict[str, str]] = []
 
     with open(file_path, "r") as f:
         for line in f:
@@ -48,12 +46,14 @@ def load_proxies(file_path: str) -> Tuple[List[str], List[str], List[str], List[
             if not line:
                 continue
             host, port, user, password = line.split(":")
-            hosts.append(host)
-            ports.append(port)
-            users.append(user)
-            passwords.append(password)
+            proxies.append({
+                "host": host,
+                "port": port,
+                "user": user,
+                "password": password,
+            })
 
-    return hosts, ports, users, passwords
+    return proxies
 
 
 logging.basicConfig(level=logging.INFO)
@@ -62,28 +62,19 @@ logging.basicConfig(level=logging.INFO)
 class CarsParser:
     def __init__(
         self,
-        proxy_hosts: List[str],
-        proxy_ports_http: List[str],
-        proxy_users: List[str],
-        proxy_passwords: List[str],
+        proxies: List[Dict[str, str]],
         default_url: str,
-        processes: int
+        processes: int,
     ):
         """Create a parser instance using proxy data from a file.
 
         Args:
-            proxy_hosts: List of proxy hosts loaded via :func:`load_proxies`.
-            proxy_ports_http: HTTP ports corresponding to the hosts.
-            proxy_users: Usernames for the proxies.
-            proxy_passwords: Passwords for the proxies.
+            proxies: List of proxy records returned by :func:`load_proxies`.
             default_url: Base URL for requests.
             processes: Number of worker processes to use.
         """
 
-        self.proxy_hosts = proxy_hosts
-        self.proxy_ports_http = proxy_ports_http
-        self.proxy_users = proxy_users
-        self.proxy_passwords = proxy_passwords
+        self.proxies = proxies
         self.default_url = default_url
         self.processes = processes
         global _proxy_index
@@ -102,9 +93,6 @@ class CarsParser:
             retry_delay: Задержка между повторными попытками в секундах.
         """
 
-        if not (len(self.proxy_hosts) == len(self.proxy_ports_http) == len(self.proxy_users) == len(self.proxy_passwords)):
-            raise ValueError("Убедитесь, что правильно передали переменные окружения (.env)")
-        
         ua = UserAgent()
 
         user_agents_url = "proxies_user_agents.json"
@@ -115,11 +103,16 @@ class CarsParser:
         else:
             user_agents = {}
 
-        for host, port_http, user, password in tqdm(
-            zip(self.proxy_hosts, self.proxy_ports_http, self.proxy_users, self.proxy_passwords),
+        for proxy in tqdm(
+            self.proxies,
             desc="Загрузка User-Agent для Proxies",
-            total=len(self.proxy_hosts),
+            total=len(self.proxies),
         ):
+            host = proxy["host"]
+            port_http = proxy["port"]
+            user = proxy["user"]
+            password = proxy["password"]
+
             if user_agents.get(host):
                 continue
 
@@ -152,7 +145,7 @@ class CarsParser:
                     f"Exceeded {max_retries} retries for proxy {host}. Skipping."
                 )
                 continue
-                    
+
         with open(user_agents_url, "w") as f:
             json.dump(user_agents, f)
 
@@ -165,16 +158,17 @@ class CarsParser:
         global _proxy_index
         with _proxy_index.get_lock():
             idx = _proxy_index.value
-            _proxy_index.value = (idx + 1) % len(self.proxy_hosts)
+            _proxy_index.value = (idx + 1) % len(self.proxies)
 
-        proxy_host = self.proxy_hosts[idx]
-        proxy_port_http = self.proxy_ports_http[idx]
-        proxy_user = self.proxy_users[idx]
-        proxy_pass = self.proxy_passwords[idx]
+        proxy = self.proxies[idx]
+        proxy_host = proxy["host"]
+        proxy_port_http = proxy["port"]
+        proxy_user = proxy["user"]
+        proxy_pass = proxy["password"]
 
         proxies = {
             "http": f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port_http}",
-            "https": f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port_http}"
+            "https": f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port_http}",
         }
 
         headers = {
@@ -657,15 +651,12 @@ def main():
     load_dotenv()
 
     proxy_file = os.getenv("PROXY_FILE", "proxies.txt")
-    proxy_hosts, proxy_ports_http, proxy_users, proxy_passwords = load_proxies(proxy_file)
+    proxies = load_proxies(proxy_file)
     default_url = os.getenv("DEFAULT_URL")
     processes = int(os.getenv("PROCESSES"))
 
     parser = CarsParser(
-        proxy_hosts,
-        proxy_ports_http,
-        proxy_users,
-        proxy_passwords,
+        proxies,
         default_url,
         processes,
     )

@@ -16,19 +16,19 @@ from parser import CarsParser
 
 @pytest.fixture
 def parser_instance():
-    return CarsParser([], [], [], [], "https://example.com", 1)
+    return CarsParser([], "https://example.com", 1)
 
 
 def test_load_proxies_parses_file(tmp_path):
     proxy_file = tmp_path / "proxies.txt"
     proxy_file.write_text("host1:80:user1:pass1\nhost2:81:user2:pass2\n\n")
 
-    hosts, ports, users, passwords = parser.load_proxies(str(proxy_file))
+    proxies = parser.load_proxies(str(proxy_file))
 
-    assert hosts == ["host1", "host2"]
-    assert ports == ["80", "81"]
-    assert users == ["user1", "user2"]
-    assert passwords == ["pass1", "pass2"]
+    assert proxies == [
+        {"host": "host1", "port": "80", "user": "user1", "password": "pass1"},
+        {"host": "host2", "port": "81", "user": "user2", "password": "pass2"},
+    ]
 
 
 def test_main_uses_load_proxies(tmp_path, monkeypatch):
@@ -42,11 +42,8 @@ def test_main_uses_load_proxies(tmp_path, monkeypatch):
     captured = {}
 
     class DummyParser:
-        def __init__(self, hosts, ports, users, passwords, default_url, processes):
-            captured["hosts"] = hosts
-            captured["ports"] = ports
-            captured["users"] = users
-            captured["passwords"] = passwords
+        def __init__(self, proxies, default_url, processes):
+            captured["proxies"] = proxies
 
         def run(self):
             captured["ran"] = True
@@ -55,10 +52,9 @@ def test_main_uses_load_proxies(tmp_path, monkeypatch):
 
     parser.main()
 
-    assert captured["hosts"] == ["host1"]
-    assert captured["ports"] == ["80"]
-    assert captured["users"] == ["user1"]
-    assert captured["passwords"] == ["pass1"]
+    assert captured["proxies"] == [
+        {"host": "host1", "port": "80", "user": "user1", "password": "pass1"}
+    ]
     assert captured.get("ran")
 
 
@@ -97,7 +93,7 @@ def test_get_params_refreshes_stale_cache(tmp_path, monkeypatch):
     old_time = time.time() - 90000
     os.utime(cache_file, (old_time, old_time))
 
-    parser_instance = CarsParser([], [], [], [], "https://example.com", 1)
+    parser_instance = CarsParser([], "https://example.com", 1)
     monkeypatch.setattr(parser.CarsParser, "get_random_proxies_and_headers", lambda self: ({}, {}))
 
     html = (
@@ -138,7 +134,7 @@ def test_get_all_car_models_refreshes_stale_cache(tmp_path, monkeypatch):
     old_time = time.time() - 90000
     os.utime(cache_file, (old_time, old_time))
 
-    parser_instance = CarsParser([], [], [], [], "https://example.com", 1)
+    parser_instance = CarsParser([], "https://example.com", 1)
 
     calls = []
 
