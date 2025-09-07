@@ -1,16 +1,21 @@
+import json
+import logging
+import os
+import time
+from functools import partial
+from random import randint
+from urllib.request import urlretrieve
+
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Dict, Any, Tuple
-from tqdm import tqdm
-import json
-from urllib.request import urlretrieve
-import os
 from dotenv import load_dotenv
 from fake_useragent import UserAgent
-from random import randint
 from multiprocess import Pool
-from functools import partial
-import time
+from tqdm import tqdm
+from typing import List, Dict, Any, Tuple
+
+
+logging.basicConfig(level=logging.INFO)
 
 
 class CarsParser:
@@ -65,13 +70,16 @@ class CarsParser:
                         "User-Agent": user_agent
                     }
                     try:
-                        response = requests.get(self.default_url, headers=headers, proxies=proxies, timeout=15)
+                        response = requests.get(
+                            self.default_url, headers=headers, proxies=proxies, timeout=15
+                        )
                         if response.status_code == 200:
                             user_agents[host] = user_agent
                             flag = False
                         else:
-                            raise ValueError()
-                    except:
+                            raise ValueError("Unexpected status code: %s" % response.status_code)
+                    except (requests.exceptions.RequestException, ValueError) as exc:
+                        logging.warning(f"Could not retrieve user agent for proxy {host}: {exc}")
                         continue
                     
         with open(user_agents_url, "w") as f:
@@ -259,9 +267,9 @@ class CarsParser:
         """ Преобразует строку с текстом в число (оставляет только цифры) """
 
         try:
-            number = int(''.join(filter(str.isdigit, line)))
-            return number
-        except:
+            return int("".join(filter(str.isdigit, line)))
+        except (ValueError, TypeError) as exc:
+            logging.warning(f"Could not parse number from '{line}': {exc}")
             return 0
 
 
@@ -327,9 +335,9 @@ class CarsParser:
         """ Извлекает блок информации о продавце (дилер/частник) """
 
         try:
-            sellers_info_block = soup.find("cars-line-clamp").text.strip()
-            return sellers_info_block
-        except:
+            return soup.find("cars-line-clamp").text.strip()
+        except AttributeError as exc:
+            logging.info(f"Seller info block not found: {exc}")
             return ""
         
     
@@ -354,13 +362,12 @@ class CarsParser:
                 with open(url, "r") as f:
                     vehicle_info = json.load(f)
                 vehicle_info["price"] = new_price
-                
+
                 with open(url, "w") as f:
                     json.dump(vehicle_info, f)
                 self.all_vehicle_ids.remove(vehicle_id)
-
-        except:
-            print("Ошибка при обновлении цены")
+        except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError) as exc:
+            logging.error(f"Failed to update price for {vehicle_id}: {exc}")
 
     
     def get_vehicle_price_by_id(self, vehicle_id: str):
@@ -373,15 +380,18 @@ class CarsParser:
             response = requests.get(url, headers=headers, proxies=proxies)
 
             if response.status_code != 200:
-                raise ValueError("Ошибка:", response.status_code)
-            
+                raise ValueError(f"Unexpected status code: {response.status_code}")
+
             soup = BeautifulSoup(response.content, "html.parser")
-            new_price = self.get_number(soup.find("span", {"class": "primary-price"}).text)
+            price_elem = soup.find("span", {"class": "primary-price"})
+            new_price = self.get_number(price_elem.text) if price_elem else 0
 
             self.update_vehicle_price(vehicle_id, new_price)
 
-        except:
-            print("Ошибка при обновлении цены")
+        except requests.exceptions.RequestException as exc:
+            logging.error(f"Failed to fetch vehicle {vehicle_id}: {exc}")
+        except (ValueError, AttributeError) as exc:
+            logging.error(f"Error parsing price for vehicle {vehicle_id}: {exc}")
         
 
     def update_prices(
@@ -419,8 +429,8 @@ class CarsParser:
             response = requests.get(url, headers=headers, proxies=proxies)
 
             if response.status_code != 200:
-                raise ValueError("Ошибка:", response.status_code)
-            
+                raise ValueError(f"Unexpected status code: {response.status_code}")
+
             soup = BeautifulSoup(response.content, "html.parser")
             title = soup.find("div", {"class": "title-row"}).find("h1").text.split(" ")
 
@@ -429,20 +439,27 @@ class CarsParser:
             info["year"] = int(title[0])
             info["brand"] = " ".join(title[1:brand_words_num + 1])
             info["model"] = " ".join(title[brand_words_num + 1:])
-            info["mileage"] = self.get_number(soup.find("p", {"class": "listing-mileage"}).text)
-            info["price"] = self.get_number(soup.find("span", {"class": "primary-price"}).text)
+            info["mileage"] = self.get_number(
+                soup.find("p", {"class": "listing-mileage"}).text
+            )
+            info["price"] = self.get_number(
+                soup.find("span", {"class": "primary-price"}).text
+            )
             info["basics_section"] = self.parse_basics_block(soup)
             info["features_section"] = self.parse_features_block(soup)
             info["seller_info"] = self.parse_sellers_info_block(soup)
 
-            images = soup.find("gallery-filmstrip").find_all("img")
+            images_block = soup.find("gallery-filmstrip")
+            images = images_block.find_all("img") if images_block else []
             images = list(map(lambda image: image["src"], images))
 
             self.download_images(vehicle_id, images)
             self.save_vehicle_info(vehicle_id, info)
 
-        except:
-            print("Ошибка при извлечении данных")
+        except requests.exceptions.RequestException as exc:
+            logging.error(f"Failed to fetch vehicle info from {vehicle_href}: {exc}")
+        except (ValueError, AttributeError, OSError) as exc:
+            logging.error(f"Error processing vehicle info for {vehicle_href}: {exc}")
     
 
     def parse_data(
