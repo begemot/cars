@@ -91,9 +91,16 @@ class CarsParser:
 
 
     def get_proxies_user_agents(
-        self
+        self,
+        max_retries: int = 3,
+        retry_delay: float = 0,
     ):
-        """ Получает словарь {прокси-хост: user-agent} """
+        """ Получает словарь {прокси-хост: user-agent}
+
+        Args:
+            max_retries: Максимальное количество попыток для каждого прокси.
+            retry_delay: Задержка между повторными попытками в секундах.
+        """
 
         if not (len(self.proxy_hosts) == len(self.proxy_ports_http) == len(self.proxy_users) == len(self.proxy_passwords)):
             raise ValueError("Убедитесь, что правильно передали переменные окружения (.env)")
@@ -108,33 +115,43 @@ class CarsParser:
         else:
             user_agents = {}
 
-        for host, port_http, user, password in tqdm(zip(
-            self.proxy_hosts, self.proxy_ports_http, self.proxy_users, self.proxy_passwords
-        ), desc="Загрузка User-Agent для Proxies", total=len(self.proxy_hosts)):
-            if not user_agents.get(host):
-                flag = True
-                while flag:
-                    user_agent = ua.chrome
+        for host, port_http, user, password in tqdm(
+            zip(self.proxy_hosts, self.proxy_ports_http, self.proxy_users, self.proxy_passwords),
+            desc="Загрузка User-Agent для Proxies",
+            total=len(self.proxy_hosts),
+        ):
+            if user_agents.get(host):
+                continue
 
-                    proxies = {
-                        "http": f"http://{user}:{password}@{host}:{port_http}",
-                        "https": f"http://{user}:{password}@{host}:{port_http}"
-                    }
-                    headers = {
-                        "User-Agent": user_agent
-                    }
-                    try:
-                        response = requests.get(
-                            self.default_url, headers=headers, proxies=proxies, timeout=15
-                        )
-                        if response.status_code == 200:
-                            user_agents[host] = user_agent
-                            flag = False
-                        else:
-                            raise ValueError("Unexpected status code: %s" % response.status_code)
-                    except (requests.exceptions.RequestException, ValueError) as exc:
-                        logging.warning(f"Could not retrieve user agent for proxy {host}: {exc}")
-                        continue
+            for _ in range(max_retries):
+                user_agent = ua.chrome
+
+                proxies = {
+                    "http": f"http://{user}:{password}@{host}:{port_http}",
+                    "https": f"http://{user}:{password}@{host}:{port_http}",
+                }
+                headers = {"User-Agent": user_agent}
+                try:
+                    response = requests.get(
+                        self.default_url, headers=headers, proxies=proxies, timeout=15
+                    )
+                    if response.status_code == 200:
+                        user_agents[host] = user_agent
+                        break
+                    raise ValueError(
+                        "Unexpected status code: %s" % response.status_code
+                    )
+                except (requests.exceptions.RequestException, ValueError) as exc:
+                    logging.warning(
+                        f"Could not retrieve user agent for proxy {host}: {exc}"
+                    )
+                    if retry_delay:
+                        time.sleep(retry_delay)
+            else:
+                logging.error(
+                    f"Exceeded {max_retries} retries for proxy {host}. Skipping."
+                )
+                continue
                     
         with open(user_agents_url, "w") as f:
             json.dump(user_agents, f)
