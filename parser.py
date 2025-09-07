@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from tqdm import tqdm
 import json
 from urllib.request import urlretrieve
@@ -80,7 +80,7 @@ class CarsParser:
         self.user_agents = user_agents
 
     
-    def get_random_proxies_and_headers(self) -> List[Dict[str, str]]:
+    def get_random_proxies_and_headers(self) -> Tuple[Dict[str, str], Dict[str, str]]:
         """ Получает случайный proxies и headers для GET-запроса"""
 
         rand_i = randint(0, len(self.proxy_hosts) - 1)
