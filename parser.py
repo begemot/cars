@@ -24,6 +24,38 @@ def init_pool(proxy_index):
     _proxy_index = proxy_index
 
 
+def load_proxies(file_path: str) -> Tuple[List[str], List[str], List[str], List[str]]:
+    """Load proxy configuration from a file.
+
+    Each non-empty line in ``file_path`` should contain four ``:``-separated
+    values representing host, port, username and password respectively.
+
+    Args:
+        file_path: Path to the proxies file.
+
+    Returns:
+        Four lists containing hosts, ports, usernames and passwords.
+    """
+
+    hosts: List[str] = []
+    ports: List[str] = []
+    users: List[str] = []
+    passwords: List[str] = []
+
+    with open(file_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            host, port, user, password = line.split(":")
+            hosts.append(host)
+            ports.append(port)
+            users.append(user)
+            passwords.append(password)
+
+    return hosts, ports, users, passwords
+
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -37,6 +69,17 @@ class CarsParser:
         default_url: str,
         processes: int
     ):
+        """Create a parser instance using proxy data from a file.
+
+        Args:
+            proxy_hosts: List of proxy hosts loaded via :func:`load_proxies`.
+            proxy_ports_http: HTTP ports corresponding to the hosts.
+            proxy_users: Usernames for the proxies.
+            proxy_passwords: Passwords for the proxies.
+            default_url: Base URL for requests.
+            processes: Number of worker processes to use.
+        """
+
         self.proxy_hosts = proxy_hosts
         self.proxy_ports_http = proxy_ports_http
         self.proxy_users = proxy_users
@@ -596,13 +639,10 @@ class CarsParser:
 def main():
     load_dotenv()
 
-    # Получаем переменные
-    proxy_hosts = os.getenv('PROXY_HOST').split(",")
-    proxy_ports_http = os.getenv('PROXY_PORT_HTTP').split(",")
-    proxy_users = os.getenv('PROXY_USER').split(",")
-    proxy_passwords = os.getenv('PROXY_PASSWORD').split(",")
-    default_url = os.getenv('DEFAULT_URL')
-    processes = int(os.getenv('PROCESSES'))
+    proxy_file = os.getenv("PROXY_FILE", "proxies.txt")
+    proxy_hosts, proxy_ports_http, proxy_users, proxy_passwords = load_proxies(proxy_file)
+    default_url = os.getenv("DEFAULT_URL")
+    processes = int(os.getenv("PROCESSES"))
 
     parser = CarsParser(
         proxy_hosts,
@@ -610,7 +650,7 @@ def main():
         proxy_users,
         proxy_passwords,
         default_url,
-        processes
+        processes,
     )
 
     parser.run()
