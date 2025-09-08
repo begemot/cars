@@ -80,6 +80,35 @@ def test_get_random_proxies_and_headers_without_proxies(monkeypatch):
     }
 
 
+def test_get_random_proxies_and_headers_rotates_user_agent(monkeypatch):
+    proxies = [
+        {"host": "host1", "port": "80", "user": "user1", "password": "pass1"}
+    ]
+    parser_instance = CarsParser(proxies, "https://example.com", 1, min_delay=0, max_delay=0)
+
+    uas = iter(["agent1", "agent2"])
+
+    class DummyUA:
+        @property
+        def random(self):
+            return next(uas)
+
+    monkeypatch.setattr(parser, "UserAgent", lambda: DummyUA())
+
+    _, headers1 = parser_instance.get_random_proxies_and_headers()
+    _, headers2 = parser_instance.get_random_proxies_and_headers()
+
+    assert headers1["User-Agent"] == "agent1"
+    assert headers2["User-Agent"] == "agent2"
+    for headers in (headers1, headers2):
+        assert (
+            headers["Accept"]
+            == "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+        )
+        assert headers["Accept-Language"] == "en-US,en;q=0.9"
+        assert headers["Referer"] == "https://example.com"
+
+
 def test_parse_basics_block_logs_url(parser_instance, caplog):
     soup = BeautifulSoup("<html></html>", "html.parser")
     url = "https://cars.com/vehicledetail/123"
@@ -367,9 +396,11 @@ def test_get_logs_and_retries_on_403(tmp_path, monkeypatch):
     records = [json.loads(line) for line in log_file.read_text().splitlines()]
     assert records[0]["proxy"] == "1.1.1.1"
     assert records[0]["event"] == "request"
+    assert records[0]["headers"]["User-Agent"] == "ua1"
     assert records[1]["event"] == "403"
     assert records[2]["proxy"] == "2.2.2.2"
     assert records[2]["event"] == "request"
+    assert records[2]["headers"]["User-Agent"] == "ua2"
 
 
 def test_analyze_logs_counts(tmp_path):
