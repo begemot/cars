@@ -1,5 +1,6 @@
 import json
 import os
+import datetime
 from types import SimpleNamespace
 from flask import Flask, render_template, request, abort
 
@@ -35,13 +36,14 @@ def load_car(car_id):
 @app.route('/')
 def index():
     cars = load_cars()
+    current_year = datetime.date.today().year
 
     def apply_filters(car):
         price_min = request.args.get('price_min', type=int)
         price_max = request.args.get('price_max', type=int)
         mileage_min = request.args.get('mileage_min', type=int)
         mileage_max = request.args.get('mileage_max', type=int)
-        year_min = request.args.get('year_min', type=int)
+        year_min = request.args.get('year_min', default=current_year - 7, type=int)
         year_max = request.args.get('year_max', type=int)
 
         if price_min is not None and car.price < price_min:
@@ -52,7 +54,7 @@ def index():
             return False
         if mileage_max is not None and car.mileage > mileage_max:
             return False
-        if year_min is not None and car.year < year_min:
+        if car.year < year_min:
             return False
         if year_max is not None and car.year > year_max:
             return False
@@ -60,7 +62,7 @@ def index():
 
     cars = [c for c in cars if apply_filters(c)]
 
-    sort_key = request.args.get('sort')
+    sort_key = request.args.get('sort', 'price')
     order = request.args.get('order', 'asc')
     if sort_key in {'price', 'mileage', 'year'}:
         reverse = order == 'desc'

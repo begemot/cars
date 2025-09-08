@@ -190,6 +190,63 @@ def test_get_all_car_models_refreshes_stale_cache(tmp_path, monkeypatch):
         saved = json.load(f)
     assert saved == {"used": {"BrandA": ["Model1"]}}
 
+    with open("car_models_filter.json", "r") as f:
+        filters = json.load(f)
+    assert filters == {
+        "used": {"BrandA": {"_enabled": True, "models": {"Model1": True}}}
+    }
+
+
+def test_parse_data_respects_filter(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    parser_instance = CarsParser([], "https://example.com", 1, min_delay=0, max_delay=0)
+
+    car_stock_types = ["used"]
+    car_makes = ["BrandA", "BrandB"]
+    car_models = {"used": {"BrandA": ["Model1", "Model2"], "BrandB": ["ModelX"]}}
+
+    filter_data = {
+        "used": {
+            "BrandA": {"_enabled": True, "models": {"Model1": True, "Model2": False}},
+            "BrandB": {"_enabled": False, "models": {"ModelX": True}},
+        }
+    }
+    with open("car_models_filter.json", "w") as f:
+        json.dump(filter_data, f)
+
+    calls = []
+
+    def fake_get_pages(self, stock_type, car_make, car_model):
+        calls.append((stock_type, car_make, car_model))
+        return 1
+
+    def fake_page_hrefs(self, stock_type, car_make, car_model, page):
+        return [], 0, 0
+
+    class DummyPool:
+        def __init__(self, processes):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            pass
+
+        def imap(self, func, iterable):
+            return []
+
+    monkeypatch.setattr(parser, "Pool", DummyPool)
+    monkeypatch.setattr(parser, "tqdm", lambda x, **kwargs: x)
+    monkeypatch.setattr(CarsParser, "get_pages_num", fake_get_pages)
+    monkeypatch.setattr(CarsParser, "get_vehicle_page_hrefs", fake_page_hrefs)
+    monkeypatch.setattr(CarsParser, "get_vehicle_info", lambda self, href, brand_words_num=1: None)
+    monkeypatch.setattr(CarsParser, "get_all_vehicle_ids", lambda self: [])
+
+    parser_instance.parse_data(car_stock_types, car_makes, car_models)
+
+    assert calls == [("used", "BrandA", "Model1")]
+
 
 def test_get_proxies_user_agents_filters_and_persists(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)

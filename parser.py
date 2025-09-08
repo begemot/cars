@@ -381,6 +381,7 @@ class CarsParser:
         """ Получает все модели автомобиля по состоянию и марке """
 
         cache_path = "car_models.json"
+        filter_path = "car_models_filter.json"
         if os.path.exists(cache_path) and time.time() - os.path.getmtime(cache_path) < 86400:
             with open(cache_path, "r") as f:
                 car_models = json.load(f)
@@ -419,6 +420,24 @@ class CarsParser:
 
             with open(cache_path, 'w') as f:
                 json.dump(car_models, f)
+
+        # Создаем или обновляем файл фильтрации моделей и производителей
+        if os.path.exists(filter_path):
+            with open(filter_path, 'r') as f:
+                filters = json.load(f)
+        else:
+            filters = {}
+
+        for stock_type, makes in car_models.items():
+            stock_filters = filters.setdefault(stock_type, {})
+            for make, models in makes.items():
+                make_filter = stock_filters.setdefault(make, {"_enabled": True, "models": {}})
+                model_filters = make_filter.setdefault("models", {})
+                for model in models:
+                    model_filters.setdefault(model, True)
+
+        with open(filter_path, 'w') as f:
+            json.dump(filters, f)
 
         return car_models
     
@@ -752,14 +771,30 @@ class CarsParser:
         """ Собирает данные обо всех автомобилях """
         self.all_vehicle_ids = self.get_all_vehicle_ids()
 
+        filter_path = "car_models_filter.json"
+        if os.path.exists(filter_path):
+            with open(filter_path, 'r') as f:
+                filters = json.load(f)
+        else:
+            filters = {}
+
         for stock_type in car_stock_types:
+            stock_filter = filters.get(stock_type, {})
             for car_make in car_makes:
+                make_filter = stock_filter.get(car_make, {"_enabled": True, "models": {}})
+                if not make_filter.get("_enabled", True):
+                    continue
 
                 if car_make in ["mercedes_benz", "rolls_royce"]:
                     brand_words_num = 1
                 else:
                     brand_words_num = len(car_make.split("_"))
-                for car_model in car_models[stock_type][car_make]:
+
+                models = car_models[stock_type][car_make]
+                model_filters = make_filter.get("models", {})
+                for car_model in models:
+                    if not model_filters.get(car_model, True):
+                        continue
                     last_page = self.get_pages_num(stock_type, car_make, car_model)
                     for page in range(1, last_page + 1):
                         vehicle_hrefs, total_on_page, skipped = self.get_vehicle_page_hrefs(
