@@ -16,7 +16,7 @@ from parser import CarsParser
 
 @pytest.fixture
 def parser_instance():
-    return CarsParser([], "https://example.com", 1)
+    return CarsParser([], "https://example.com", 1, min_delay=0, max_delay=0)
 
 
 def test_load_proxies_parses_file(tmp_path):
@@ -59,7 +59,7 @@ def test_main_uses_load_proxies(tmp_path, monkeypatch):
 
 
 def test_get_random_proxies_and_headers_without_proxies(monkeypatch):
-    parser_instance = CarsParser([], "https://example.com", 1)
+    parser_instance = CarsParser([], "https://example.com", 1, min_delay=0, max_delay=0)
 
     class DummyUA:
         @property
@@ -115,7 +115,7 @@ def test_get_params_refreshes_stale_cache(tmp_path, monkeypatch):
     old_time = time.time() - 90000
     os.utime(cache_file, (old_time, old_time))
 
-    parser_instance = CarsParser([], "https://example.com", 1)
+    parser_instance = CarsParser([], "https://example.com", 1, min_delay=0, max_delay=0)
     monkeypatch.setattr(parser.CarsParser, "get_random_proxies_and_headers", lambda self: ({}, {}))
 
     html = (
@@ -156,7 +156,7 @@ def test_get_all_car_models_refreshes_stale_cache(tmp_path, monkeypatch):
     old_time = time.time() - 90000
     os.utime(cache_file, (old_time, old_time))
 
-    parser_instance = CarsParser([], "https://example.com", 1)
+    parser_instance = CarsParser([], "https://example.com", 1, min_delay=0, max_delay=0)
 
     calls = []
 
@@ -200,7 +200,7 @@ def test_get_proxies_user_agents_filters_and_persists(tmp_path, monkeypatch):
     monkeypatch.setenv("PROXY_FILE", str(proxy_file))
 
     proxies = parser.load_proxies(str(proxy_file))
-    parser_instance = CarsParser(proxies, "https://example.com", 1)
+    parser_instance = CarsParser(proxies, "https://example.com", 1, min_delay=0, max_delay=0)
 
     class DummyUA:
         @property
