@@ -87,7 +87,12 @@ class CarsParser:
 
     def _get(self, url: str, **kwargs):
         time.sleep(random.uniform(self.min_delay, self.max_delay))
-        return requests.get(url, **kwargs)
+        kwargs.setdefault("timeout", 15)
+        try:
+            return requests.get(url, **kwargs)
+        except TypeError:
+            kwargs.pop("timeout", None)
+            return requests.get(url, **kwargs)
 
     def get_page_with_selenium(self, url: str, wait_time: float = 0) -> str:
         """Retrieve fully rendered HTML using Selenium.
@@ -390,14 +395,25 @@ class CarsParser:
                 except TypeError:
                     pool = Pool(self.processes)
                 with pool:
-                    # Создаем список аргументов для каждого процесса
                     args = [(stock_type, car_make) for car_make in car_makes]
 
-                    # Запускаем процессы параллельно
-                    results = pool.starmap(self.get_models, args)
+                    car_make_models: Dict[str, Any] = {}
+                    if hasattr(pool, "imap"):
+                        results_iter = pool.imap(
+                            lambda arg: (arg[1], self.get_models(*arg)), args
+                        )
+                    else:
+                        results_iter = (
+                            (arg[1], self.get_models(*arg)) for arg in args
+                        )
 
-                    # Собираем результаты в словарь
-                    car_make_models = dict(zip(car_makes, results))
+                    for car_make, models in tqdm(
+                        results_iter,
+                        total=len(args),
+                        desc=f"Марки {stock_type}",
+                        leave=False,
+                    ):
+                        car_make_models[car_make] = models
 
                 car_models[stock_type] = car_make_models
 
@@ -794,7 +810,7 @@ def main():
     proxy_file = os.getenv("PROXY_FILE", "proxies.txt")
     proxies = load_proxies(proxy_file)
     default_url = os.getenv("DEFAULT_URL")
-    processes_str = os.getenv("PROCESSES", "1")
+    processes_str = os.getenv("PROCESSES", "4")
     try:
         processes = int(processes_str)
     except ValueError:
