@@ -71,7 +71,13 @@ def test_get_random_proxies_and_headers_without_proxies(monkeypatch):
     proxies, headers = parser_instance.get_random_proxies_and_headers()
 
     assert proxies == {}
-    assert headers == {"User-Agent": "agent"}
+    assert headers == {
+        "User-Agent": "agent",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://example.com",
+        "Connection": "keep-alive",
+    }
 
 
 def test_parse_basics_block_logs_url(parser_instance, caplog):
