@@ -153,6 +153,15 @@ class CarsParser:
         else:
             user_agents = {}
 
+        # When no proxy list is supplied, simply persist any cached
+        # ``user_agents`` and continue without attempting network calls.
+        if not self.proxies:
+            self.user_agents = user_agents
+            with open(user_agents_url, "w") as f:
+                json.dump(user_agents, f)
+            logging.info("Proxy list is empty, proceeding without proxies")
+            return
+
         successful_proxies = []
 
         for proxy in tqdm(
@@ -198,6 +207,17 @@ class CarsParser:
                     f"Exceeded {max_retries} retries for proxy {host}. Skipping."
                 )
                 continue
+
+        if not successful_proxies:
+            # No proxy successfully reached the target.  Persist any cached
+            # ``user_agents`` information but leave ``self.proxies`` empty so
+            # subsequent calls will operate without proxies.
+            with open(user_agents_url, "w") as f:
+                json.dump(user_agents, f)
+            self.user_agents = user_agents
+            self.proxies = []
+            logging.warning("No working proxies found, continuing without proxies")
+            return
 
         with open(user_agents_url, "w") as f:
             json.dump(user_agents, f)

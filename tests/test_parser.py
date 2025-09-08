@@ -228,3 +228,42 @@ def test_get_proxies_user_agents_filters_and_persists(tmp_path, monkeypatch):
         data = json.load(f)
 
     assert list(data.keys()) == ["host1"]
+
+
+def test_get_proxies_user_agents_handles_empty_list(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    parser_instance = CarsParser([], "https://example.com", 1, min_delay=0, max_delay=0)
+
+    parser_instance.get_proxies_user_agents()
+
+    assert parser_instance.proxies == []
+    assert not (tmp_path / "proxies.txt").exists()
+
+
+def test_get_proxies_user_agents_all_fail(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    proxy_file = tmp_path / "proxies.txt"
+    proxy_file.write_text("host1:80:user1:pass1\n")
+
+    proxies = parser.load_proxies(str(proxy_file))
+    parser_instance = CarsParser(proxies, "https://example.com", 1, min_delay=0, max_delay=0)
+
+    class DummyUA:
+        @property
+        def chrome(self):
+            return "agent"
+
+    monkeypatch.setattr(parser, "UserAgent", lambda: DummyUA())
+
+    def failing_get(url, headers=None, proxies=None, timeout=15):
+        raise parser.requests.exceptions.RequestException("boom")
+
+    monkeypatch.setattr(parser.requests, "get", failing_get)
+
+    parser_instance.get_proxies_user_agents(max_retries=1)
+
+    assert parser_instance.proxies == []
+    # original proxy file should remain unchanged
+    assert proxy_file.read_text() == "host1:80:user1:pass1\n"
