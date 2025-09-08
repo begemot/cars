@@ -13,7 +13,15 @@ from fake_useragent import UserAgent
 from multiprocessing import Value
 from multiprocessing.pool import ThreadPool as Pool
 from tqdm import tqdm
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
+
+
+request_logger = logging.getLogger("cars.request")
+request_logger.setLevel(logging.INFO)
+if not request_logger.handlers:
+    _handler = logging.FileHandler("requests.log")
+    _handler.setFormatter(logging.Formatter("%(message)s"))
+    request_logger.addHandler(_handler)
 
 
 _proxy_index = None
@@ -60,6 +68,40 @@ def load_proxies(file_path: str) -> List[Dict[str, str]]:
 logging.basicConfig(level=logging.INFO)
 
 
+def analyze_logs(log_file: str = "requests.log") -> Tuple[Dict[str, int], Dict[str, int]]:
+    """Analyze request logs and count 403 errors per proxy and user-agent.
+
+    Args:
+        log_file: Path to the log file produced by the parser.
+
+    Returns:
+        Two dictionaries mapping proxy IPs and user-agent strings to the number
+        of 403 errors encountered with each.
+    """
+    proxy_counts: Dict[str, int] = {}
+    header_counts: Dict[str, int] = {}
+    if not os.path.exists(log_file):
+        return proxy_counts, header_counts
+    with open(log_file, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get("event") != "403":
+                continue
+            proxy = record.get("proxy")
+            ua = (record.get("headers") or {}).get("User-Agent")
+            if proxy:
+                proxy_counts[proxy] = proxy_counts.get(proxy, 0) + 1
+            if ua:
+                header_counts[ua] = header_counts.get(ua, 0) + 1
+    return proxy_counts, header_counts
+
+
 class CarsParser:
     def __init__(
         self,
@@ -68,6 +110,7 @@ class CarsParser:
         processes: int,
         min_delay: float = 1.0,
         max_delay: float = 3.0,
+        max_retries: int = 3,
     ):
         """Create a parser instance using proxy data from a file.
 
@@ -82,17 +125,36 @@ class CarsParser:
         self.processes = processes
         self.min_delay = min_delay
         self.max_delay = max_delay
+        self.max_retries = max_retries
         global _proxy_index
         _proxy_index = Value('i', 0)
 
-    def _get(self, url: str, **kwargs):
-        time.sleep(random.uniform(self.min_delay, self.max_delay))
+    def _get(self, url: str, headers: Optional[Dict[str, str]] = None, proxies: Optional[Dict[str, str]] = None, max_retries: Optional[int] = None, **kwargs):
+        if max_retries is None:
+            max_retries = self.max_retries
+        if headers is None or proxies is None:
+            proxies, headers = self.get_random_proxies_and_headers()
         kwargs.setdefault("timeout", 15)
-        try:
-            return requests.get(url, **kwargs)
-        except TypeError:
-            kwargs.pop("timeout", None)
-            return requests.get(url, **kwargs)
+        attempt = 0
+        while True:
+            time.sleep(random.uniform(self.min_delay, self.max_delay))
+            proxy_ip = "direct"
+            if proxies:
+                proxy_url = proxies.get("http") or proxies.get("https") or ""
+                proxy_ip = proxy_url.split("@")[-1].split(":")[0]
+            request_logger.info(json.dumps({"event": "request", "proxy": proxy_ip, "url": url, "headers": headers or {}}))
+            try:
+                response = requests.get(url, headers=headers, proxies=proxies, **kwargs)
+            except TypeError:
+                kwargs.pop("timeout", None)
+                response = requests.get(url, headers=headers, proxies=proxies, **kwargs)
+            if response.status_code != 403:
+                return response
+            request_logger.warning(json.dumps({"event": "403", "proxy": proxy_ip, "url": url, "headers": headers or {}}))
+            if attempt >= max_retries:
+                return response
+            proxies, headers = self.get_random_proxies_and_headers()
+            attempt += 1
 
     def get_page_with_selenium(self, url: str, wait_time: float = 0) -> str:
         """Retrieve fully rendered HTML using Selenium.
