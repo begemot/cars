@@ -324,3 +324,64 @@ def test_get_proxies_user_agents_all_fail(tmp_path, monkeypatch):
     assert parser_instance.proxies == []
     # original proxy file should remain unchanged
     assert proxy_file.read_text() == "host1:80:user1:pass1\n"
+
+
+def test_get_logs_and_retries_on_403(tmp_path, monkeypatch):
+    log_file = tmp_path / "requests.log"
+    handler = logging.FileHandler(log_file)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    test_logger = logging.getLogger("test.logger")
+    test_logger.setLevel(logging.INFO)
+    test_logger.addHandler(handler)
+    monkeypatch.setattr(parser, "request_logger", test_logger)
+
+    parser_instance = CarsParser([], "https://example.com", 1, min_delay=0, max_delay=0, max_retries=1)
+
+    responses = [SimpleNamespace(status_code=403), SimpleNamespace(status_code=200)]
+
+    def fake_get(url, headers=None, proxies=None, timeout=15):
+        return responses.pop(0)
+
+    monkeypatch.setattr(parser.requests, "get", fake_get)
+
+    proxies_headers = [
+        (
+            {"http": "http://u:p@1.1.1.1:80", "https": "http://u:p@1.1.1.1:80"},
+            {"User-Agent": "ua1"},
+        ),
+        (
+            {"http": "http://u:p@2.2.2.2:80", "https": "http://u:p@2.2.2.2:80"},
+            {"User-Agent": "ua2"},
+        ),
+    ]
+
+    def fake_rand(self):
+        return proxies_headers.pop(0)
+
+    monkeypatch.setattr(CarsParser, "get_random_proxies_and_headers", fake_rand)
+
+    response = parser_instance._get("http://example.com")
+
+    assert response.status_code == 200
+
+    records = [json.loads(line) for line in log_file.read_text().splitlines()]
+    assert records[0]["proxy"] == "1.1.1.1"
+    assert records[0]["event"] == "request"
+    assert records[1]["event"] == "403"
+    assert records[2]["proxy"] == "2.2.2.2"
+    assert records[2]["event"] == "request"
+
+
+def test_analyze_logs_counts(tmp_path):
+    log_file = tmp_path / "requests.log"
+    entries = [
+        {"event": "request", "proxy": "1.1.1.1", "url": "a", "headers": {"User-Agent": "ua1"}},
+        {"event": "403", "proxy": "1.1.1.1", "url": "a", "headers": {"User-Agent": "ua1"}},
+        {"event": "403", "proxy": "2.2.2.2", "url": "b", "headers": {"User-Agent": "ua2"}},
+    ]
+    log_file.write_text("\n".join(json.dumps(e) for e in entries))
+
+    proxy_counts, header_counts = parser.analyze_logs(str(log_file))
+
+    assert proxy_counts == {"1.1.1.1": 1, "2.2.2.2": 1}
+    assert header_counts == {"ua1": 1, "ua2": 1}
