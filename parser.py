@@ -168,6 +168,16 @@ class CarsParser:
     
     def get_random_proxies_and_headers(self) -> Tuple[Dict[str, str], Dict[str, str]]:
         """ Получает proxies и headers для GET-запроса в детерминированном порядке """
+        # When no proxies are configured, fall back to direct requests without
+        # proxy authentication.  Previously this resulted in a ZeroDivisionError
+        # when the proxies list was empty.
+        if not self.proxies:
+            try:
+                user_agent = UserAgent().random
+            except Exception:
+                user_agent = ""
+            headers = {"User-Agent": user_agent} if user_agent else {}
+            return {}, headers
 
         global _proxy_index
         with _proxy_index.get_lock():
@@ -196,9 +206,7 @@ class CarsParser:
                 )
                 return self.get_random_proxies_and_headers()
 
-        headers = {
-            "User-Agent": user_agent
-        }
+        headers = {"User-Agent": user_agent}
 
         return proxies, headers
     

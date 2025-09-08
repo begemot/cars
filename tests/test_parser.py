@@ -58,6 +58,22 @@ def test_main_uses_load_proxies(tmp_path, monkeypatch):
     assert captured.get("ran")
 
 
+def test_get_random_proxies_and_headers_without_proxies(monkeypatch):
+    parser_instance = CarsParser([], "https://example.com", 1)
+
+    class DummyUA:
+        @property
+        def random(self):
+            return "agent"
+
+    monkeypatch.setattr(parser, "UserAgent", lambda: DummyUA())
+
+    proxies, headers = parser_instance.get_random_proxies_and_headers()
+
+    assert proxies == {}
+    assert headers == {"User-Agent": "agent"}
+
+
 def test_parse_basics_block_logs_url(parser_instance, caplog):
     soup = BeautifulSoup("<html></html>", "html.parser")
     url = "https://cars.com/vehicledetail/123"
