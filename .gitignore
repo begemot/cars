@@ -4,3 +4,5 @@ data/*
 proxies_user_agents.json
 proxies.txt
 car_models.json
+car_models_filter.json
+requests.log
