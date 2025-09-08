@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+import random
 from functools import partial
 from urllib.request import urlretrieve
 
@@ -65,6 +66,8 @@ class CarsParser:
         proxies: List[Dict[str, str]],
         default_url: str,
         processes: int,
+        min_delay: float = 1.0,
+        max_delay: float = 3.0,
     ):
         """Create a parser instance using proxy data from a file.
 
@@ -77,8 +80,14 @@ class CarsParser:
         self.proxies = proxies
         self.default_url = default_url
         self.processes = processes
+        self.min_delay = min_delay
+        self.max_delay = max_delay
         global _proxy_index
         _proxy_index = Value('i', 0)
+
+    def _get(self, url: str, **kwargs):
+        time.sleep(random.uniform(self.min_delay, self.max_delay))
+        return requests.get(url, **kwargs)
 
 
     def get_proxies_user_agents(
@@ -127,7 +136,7 @@ class CarsParser:
                 }
                 headers = {"User-Agent": user_agent}
                 try:
-                    response = requests.get(
+                    response = self._get(
                         self.default_url, headers=headers, proxies=proxies, timeout=15
                     )
                     if response.status_code == 200:
@@ -241,7 +250,7 @@ class CarsParser:
                 return data["car_stock_types"], data["car_makes"]
 
         proxies, headers = self.get_random_proxies_and_headers()
-        response = requests.get(self.default_url, headers=headers, proxies=proxies)
+        response = self._get(self.default_url, headers=headers, proxies=proxies)
         if response.status_code != 200:
             raise ValueError("Ошибка:", response.status_code)
 
@@ -284,10 +293,10 @@ class CarsParser:
         }
 
 
-        response = requests.get(
-            self.default_url, 
-            headers=headers, 
-            proxies=proxies, 
+        response = self._get(
+            self.default_url,
+            headers=headers,
+            proxies=proxies,
             params=params
         )
 
@@ -358,7 +367,7 @@ class CarsParser:
             "page": 1
         }
 
-        response = requests.get(self.default_url, headers=headers, proxies=proxies, params=params)
+        response = self._get(self.default_url, headers=headers, proxies=proxies, params=params)
 
         if response.status_code != 200:
             raise ValueError("Ошибка:", response.status_code)
@@ -398,7 +407,7 @@ class CarsParser:
             "page": page
         }
 
-        response = requests.get(self.default_url, headers=headers, proxies=proxies, params=params)
+        response = self._get(self.default_url, headers=headers, proxies=proxies, params=params)
 
         if response.status_code != 200:
             raise ValueError("Ошибка:", response.status_code)
@@ -451,7 +460,7 @@ class CarsParser:
             for i, image_path in enumerate(images):
                 filepath = os.path.join(folder_path, f"{i}.jpg")
                 image_path = image_path.replace("small", "xlarge")
-                response = requests.get(image_path, stream=True, proxies=proxies, headers=headers)
+                response = self._get(image_path, stream=True, proxies=proxies, headers=headers)
 
                 with open(filepath, "wb") as f:
                     for chunk in response.iter_content(1024):
@@ -567,7 +576,7 @@ class CarsParser:
             vehicle_href = f"/vehicledetail/{vehicle_id}"
             proxies, headers = self.get_random_proxies_and_headers()
             url = f"https://cars.com{vehicle_href}"
-            response = requests.get(url, headers=headers, proxies=proxies)
+            response = self._get(url, headers=headers, proxies=proxies)
 
             if response.status_code != 200:
                 raise ValueError(f"Unexpected status code: {response.status_code}")
@@ -621,7 +630,7 @@ class CarsParser:
 
             url = f"https://cars.com{vehicle_href}"
             proxies, headers = self.get_random_proxies_and_headers()
-            response = requests.get(url, headers=headers, proxies=proxies)
+            response = self._get(url, headers=headers, proxies=proxies)
 
             if response.status_code != 200:
                 raise ValueError(f"Unexpected status code: {response.status_code}")
