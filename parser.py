@@ -794,7 +794,13 @@ def main():
     proxy_file = os.getenv("PROXY_FILE", "proxies.txt")
     proxies = load_proxies(proxy_file)
     default_url = os.getenv("DEFAULT_URL")
-    processes = int(os.getenv("PROCESSES"))
+    processes_str = os.getenv("PROCESSES", "1")
+    try:
+        processes = int(processes_str)
+    except ValueError:
+        raise ValueError(
+            f"PROCESSES must be an integer, got {processes_str!r}"
+        )
 
     parser = CarsParser(
         proxies,
