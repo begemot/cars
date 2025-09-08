@@ -17,3 +17,23 @@ following required keys:
 Tests or integrations that mock headers should include these fields to match
 the behaviour of the parser.
 
+## Selenium support
+
+Some pages load critical data via JavaScript. For such cases the parser
+provides a small helper to fetch fully rendered HTML using a headless Chrome
+browser:
+
+```
+pip install selenium webdriver-manager
+```
+
+```python
+from parser import CarsParser
+
+parser = CarsParser([], "https://example.com", 1)
+html = parser.get_page_with_selenium("https://example.com")
+```
+
+The returned string contains the page source after any dynamic content has
+been loaded.
+

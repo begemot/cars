@@ -89,6 +89,47 @@ class CarsParser:
         time.sleep(random.uniform(self.min_delay, self.max_delay))
         return requests.get(url, **kwargs)
 
+    def get_page_with_selenium(self, url: str, wait_time: float = 0) -> str:
+        """Retrieve fully rendered HTML using Selenium.
+
+        This helper spins up a headless Chrome browser to load ``url`` and
+        returns the resulting ``page_source``. It is useful for pages that
+        require JavaScript execution before their contents are available.
+
+        Args:
+            url: Target page to load.
+            wait_time: Optional number of seconds to wait after loading the
+                page.  This can be helpful for pages that perform additional
+                asynchronous requests.
+
+        Returns:
+            The HTML content of the page after JavaScript execution.
+        """
+
+        # Import Selenium components lazily so that the parser can be used
+        # without the optional dependency installed.
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
+        from webdriver_manager.chrome import ChromeDriverManager
+
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()),
+            options=options,
+        )
+        try:
+            driver.get(url)
+            if wait_time:
+                time.sleep(wait_time)
+            return driver.page_source
+        finally:
+            driver.quit()
+
 
     def get_proxies_user_agents(
         self,
