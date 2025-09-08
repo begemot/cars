@@ -167,7 +167,12 @@ class CarsParser:
 
     
     def get_random_proxies_and_headers(self) -> Tuple[Dict[str, str], Dict[str, str]]:
-        """ Получает proxies и headers для GET-запроса в детерминированном порядке """
+        """Получает proxies и набор заголовков, имитирующих браузер.
+
+        Заголовки включают стандартные поля ``User-Agent``, ``Accept``,
+        ``Accept-Language``, ``Referer`` и ``Connection``. Это помогает
+        уменьшить вероятность блокировки при выполнении HTTP-запросов.
+        """
         # When no proxies are configured, fall back to direct requests without
         # proxy authentication.  Previously this resulted in a ZeroDivisionError
         # when the proxies list was empty.
@@ -176,7 +181,14 @@ class CarsParser:
                 user_agent = UserAgent().random
             except Exception:
                 user_agent = ""
-            headers = {"User-Agent": user_agent} if user_agent else {}
+            headers = {
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": self.default_url,
+                "Connection": "keep-alive",
+            }
+            if user_agent:
+                headers["User-Agent"] = user_agent
             return {}, headers
 
         global _proxy_index
@@ -206,7 +218,13 @@ class CarsParser:
                 )
                 return self.get_random_proxies_and_headers()
 
-        headers = {"User-Agent": user_agent}
+        headers = {
+            "User-Agent": user_agent,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": self.default_url,
+            "Connection": "keep-alive",
+        }
 
         return proxies, headers
     
