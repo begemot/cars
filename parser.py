@@ -192,7 +192,7 @@ class CarsParser:
                 headers = {"User-Agent": user_agent}
                 try:
                     response = self._get(
-                        self.default_url, headers=headers, proxies=proxies, timeout=15
+                        self.default_url, headers=headers, proxies=proxies, timeout=35
                     )
                     if response.status_code == 200:
                         user_agents[host] = user_agent

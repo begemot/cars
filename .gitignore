@@ -1,2 +1,6 @@
 venv/*
-
+car_params.json
+data/*
+proxies_user_agents.json
+proxies.txt
+car_models.json
