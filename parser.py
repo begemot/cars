@@ -344,16 +344,13 @@ class CarsParser:
             "https": f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port_http}",
         }
 
-        user_agent = self.user_agents.get(proxy_host)
-        if not user_agent:
-            try:
-                user_agent = UserAgent().random
-                self.user_agents[proxy_host] = user_agent
-            except Exception:
-                logging.warning(
-                    "Skipping proxy %s due to missing user-agent", proxy_host
-                )
-                return self.get_random_proxies_and_headers()
+        try:
+            user_agent = UserAgent().random
+        except Exception:
+            logging.warning(
+                "Skipping proxy %s due to missing user-agent", proxy_host
+            )
+            return self.get_random_proxies_and_headers()
 
         headers = {
             "User-Agent": user_agent,
